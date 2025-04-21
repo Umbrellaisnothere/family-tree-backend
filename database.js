@@ -13,7 +13,7 @@ db.serialize(() => {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         birthDate TEXT NOT NULL,
-        deathDate TEXT, --REMOVE 'NOT NULL'
+        deathDate TEXT, --REMOVE 'NOT NULL',
         image TEXT,
         gender TEXT
     )`, (err) => {

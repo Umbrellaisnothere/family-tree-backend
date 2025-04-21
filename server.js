@@ -11,7 +11,7 @@ app.get('/api/family', (req, res) => {
     const getPersons = 'SELECT * FROM Person';
     const getRelationships = 'SELECT * FROM Relationship';
 
-    db.all(getPersons, [], (err, rows) => {
+    db.all(getPersons, [], (err, persons) => {
         if (err) {
             return res.status(500).json({ error: 'Failed to fetch persons' });
         }
@@ -22,17 +22,27 @@ app.get('/api/family', (req, res) => {
             }
 
             const personMap = {};
-            rows.forEach(p => {
-                personMap[p.id] = { ...p, children: [] };
+            persons.forEach(p => {
+                p.children = [];
+                p.partner = null;
+                p.parent = null;
+                personMap[p.id] = p;
             });
 
             relationships.forEach(r => {
+                const p1 = personMap[r.personId1];
+                const p2 = personMap[r.personId2];
+
+                if (!p1 || !p2) return;
+
                 if (r.type === 'parent') {
-                    const parent = personMap[r.personId1];
-                    const child = personMap[r.personId2];
-                    if (parent && child) {
-                        parent.children.push(child);
-                    }
+                    p1.children.push(p2);
+                    p2.parent = p1;
+                }
+
+                if (r.type === 'spouse') {
+                    p1.partner = p2;
+                    p2.partner = p1;
                 }
             });
 
@@ -41,11 +51,14 @@ app.get('/api/family', (req, res) => {
             );
 
             const rootNodes = Object.values(personMap).filter(p => !childIds.has(p.id));
-
-            res.json(rootNodes);
+            res.json({
+                roots: rootNodes,
+                allPersons: Object.values(personMap)
+            });
         });
     });
 });
+
 
 app.get('/api/persons', (req, res) => {
     db.all('SELECT * FROM Person', [], (err, rows) => {
@@ -85,6 +98,7 @@ app.post('/api/family', (req, res) => {
     if (!name || !birthDate || !gender) {
         return res.status(400).json({ error: 'Missing required fields: name, birthDate, or gender' });
     }
+    
     // Validate 
     console.log('Received request body:', req.body);
 
