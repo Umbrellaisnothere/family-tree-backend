@@ -6,6 +6,21 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+function removeCircularReferences(node, visited = new Set()) {
+    if (!node || visited.has(node.id)) return;
+
+        if (node.children) {
+            node.children.forEach(child => {
+                delete child.parent;
+                removeCircularReferences(child, visited);
+                });
+            }
+
+        if (node.partner) {
+            delete node.partner.parent;
+        }
+    }
+
 
 app.get('/api/family', (req, res) => {
     const getPersons = 'SELECT * FROM Person';
@@ -51,6 +66,8 @@ app.get('/api/family', (req, res) => {
             );
 
             const rootNodes = Object.values(personMap).filter(p => !childIds.has(p.id));
+            rootNodes.forEach(root => removeCircularReferences(root));
+            
             res.json({
                 roots: rootNodes,
                 allPersons: Object.values(personMap)
