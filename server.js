@@ -188,7 +188,7 @@ app.delete('/api/family/:id', (req, res) => {
             }
 
             res.status(200).json({ message: 'Person deleted successfully' });
-        });
+        });  
     });
 });
 
