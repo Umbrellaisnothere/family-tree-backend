@@ -6,20 +6,20 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-function removeCircularReferences(node, visited = new Set()) {
-    if (!node || visited.has(node.id)) return;
+// seen to visited
+function removeCircularReferences(person, visited = new Set()) {
+    if (!person || typeof person !== 'object' || visited.has(person)) return;
 
-        if (node.children) {
-            node.children.forEach(child => {
-                delete child.parent;
-                removeCircularReferences(child, visited);
-                });
-            }
+    visited.add(person);
 
-        if (node.partner) {
-            delete node.partner.parent;
-        }
+    if (person.partner) {
+        delete person.partner.partner;
     }
+
+    if (person.children && Array.isArray(person.children)) {
+        person.children.forEach(child => removeCircularReferences(child, visited));
+    }
+}
 
 
 app.get('/api/family', (req, res) => {
@@ -66,6 +66,7 @@ app.get('/api/family', (req, res) => {
             );
 
             const rootNodes = Object.values(personMap).filter(p => !childIds.has(p.id));
+
             rootNodes.forEach(root => removeCircularReferences(root));
             
             res.json({
@@ -77,15 +78,17 @@ app.get('/api/family', (req, res) => {
 });
 
 
-app.get('/api/persons', (req, res) => {
-    db.all('SELECT * FROM Person', [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
+    app.get('/api/persons', (req, res) => {
+        db.all('SELECT * FROM Person ORDER BY birthDate ASC', [], (err, rows) => {
+            if (err) {
+                return res.status(500).json({ error: err.message });
+            }
+            res.json(rows);
+        });
     });
-});
 
-app.get('/api/persons_with_relationships', (req, res) => {
-    const query = `
+    app.get('/api/persons_with_relationships', (req, res) => {
+        const query = `
         SELECT
             p.*,
             r.type AS relationship,
@@ -98,100 +101,133 @@ app.get('/api/persons_with_relationships', (req, res) => {
             if (err) return res.status(500).json({ error: err.message });
             res.json(rows);
         });
-});
-
-app.get('/api/relationships', (req, res) => {
-    db.all('SELECT * FROM Relationship', [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
     });
-});
 
-app.post('/api/family', (req, res) => {
-    let { name, birthDate, deathDate, image, parent_Id, gender } = req.body;
-    deathDate = deathDate || null;
-    
-
-    if (!name || !birthDate || !gender) {
-        return res.status(400).json({ error: 'Missing required fields: name, birthDate, or gender' });
-    }
-    
-    // Validate 
-    console.log('Received request body:', req.body);
-
-    const insertPersonQuery = `INSERT INTO Person (name, birthDate, deathDate, image, gender) VALUES (?, ?, ?, ?, ?)`;
-
-    db.run(insertPersonQuery, [name, birthDate, deathDate, image, gender], function (err) {
-        if (err) {
-            console.error('Error inserting person:', err.message);
-            return res.status(500).json({ error: 'Failed to insert person' });
-        }
-
-        const newPersonId = this.lastID;
-        console.log(`Inserted new person with ID ${newPersonId}`);
-
-        const sendNewPerson = () => {
-            db.get('SELECT * FROM Person WHERE id = ?', [newPersonId], (selectErr, row) => {
-                if (selectErr) {
-                    return res.status(500).json({ error: 'Failed to fetch inserted person' });
-                }
-                res.status(201).json(row);
-            });
-        };
-
-        if (parent_Id) {
-            const insertRelationship = `INSERT INTO Relationship (personId1, personId2, type) VALUES (?, ?, ?)`;
-            db.run(insertRelationship, [parent_Id, newPersonId, 'parent'], function (relErr) {
-                if (relErr) {
-                    console.error("Error creating relationship:", relErr.message);
-                    return res.status(500).json({ error: 'Failed to insert relationship' });
-                }
-                console.log(`Creating relationship: parent ${parent_Id} -> child ${newPersonId}`);
-                sendNewPerson();
-            });
-        } else {
-            sendNewPerson();
-        }
+    app.get('/api/relationships', (req, res) => {
+        db.all('SELECT * FROM Relationship', [], (err, rows) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json(rows);
+        });
     });
-});
 
-app.patch('/api/person/:id/gender', (req, res) => {
-    const { id } = req.params;
-    const { gender } = req.body;
+    app.post('/api/family', (req, res) => {
+        let { name, birthDate, deathDate, image, parentId, partner_Id, gender } = req.body;
+        deathDate = deathDate || null;
 
-    if (!gender) {
-        return res.status(400).json({ error: 'Missing gender field' });
-    }
 
-    const query = 'UPDATE Person SET gender = ? WHERE id = ?';
-
-    db.run(query, [gender, id], function (err){
-        if (err) {
-            console.error('Error updating gender:', err.message);
-            return res.status(500).json({ error: 'Failed to update gender' });
-        }
-        res.status(200).json({ message: 'Gender updated successfully'});
-    });
-});
-
-app.delete('/api/family/:id', (req, res) => {
-    const { id } = req.params;
-
-    db.run('DELETE FROM Relationship WHERE personId1 = ? OR personId2 = ?', [id, id], function(err) {
-        if (err) {
-            return res.status(500).json({ error: 'Failed to delete relationships' });
+        if (!name || !birthDate || !gender) {
+            console.error('Bad request:', req.body);
+            return res.status(400).json({ error: 'Missing required fields: name, birthDate, or gender' });
         }
 
-        db.run('DELETE FROM Person WHERE id = ?', [id], function(err2) {
-            if (err2) {
-                return res.status(500).json({ error: 'Failed to delete person' });
+        // Validate 
+        console.log('Received request body:', req.body);
+
+        const insertPersonQuery = `INSERT INTO Person (name, birthDate, deathDate, image, gender) VALUES (?, ?, ?, ?, ?)`;
+
+        db.run(insertPersonQuery, [name, birthDate, deathDate, image, gender], function (err) {
+            if (err) {
+                console.error('Error inserting person:', err.message);
+                return res.status(500).json({ error: 'Failed to insert person' });
             }
 
-            res.status(200).json({ message: 'Person deleted successfully' });
-        });  
-    });
-});
+            const newPersonId = this.lastID;
+            console.log(`Inserted new person with ID ${newPersonId}`);
 
-app.listen(5000, () => {
-    console.log(`Server is running on http://localhost:5000`);
-});
+            const insertRelationships = [];
+
+            if (parentId) {
+                insertRelationships.push({
+                    personId1: parentId,
+                    personId2: newPersonId,
+                    type: 'parent'
+                })
+            }
+            if (partner_Id) {
+                insertRelationships.push({
+                    personId1: newPersonId,
+                    personId2: partner_Id,
+                    type: 'spouse'
+                },
+                    {
+                        personId1: partner_Id,
+                        personId2: newPersonId,
+                        type: 'spouse'
+                    });
+            }
+
+            const insertNextRelationship = () => {
+                if (insertRelationships.length === 0) return sendNewPerson();
+
+                const { personId1, personId2, type } = insertRelationships.shift();
+                const insertRelationshipQuery = `INSERT INTO Relationship (personId1, personId2, type) VALUES (?, ?, ?)`;
+
+                db.run(insertRelationshipQuery, [personId1, personId2, type], function (relErr) {
+                    if (relErr) {
+                        console.error("Error creating relationship:", relErr.message);
+                        return res.status(500).json({ error: 'Failed to insert relationship' });
+                    }
+                    console.log(`Created relationship: ${type} ${personId1} -> ${personId2}`);
+                    insertNextRelationship();
+                });
+            };
+
+            const sendNewPerson = () => {
+                db.get('SELECT * FROM Person WHERE id = ?', [newPersonId], (selectErr, row) => {
+                    if (selectErr) {
+                        return res.status(500).json({ error: 'Failed to fetch inserted person' });
+                    }
+                    res.status(201).json(row);
+                });
+            };
+
+            if (insertRelationships.length > 0) {
+                insertNextRelationship();
+            } else {
+                sendNewPerson();
+            }
+
+        });
+    });
+
+    app.patch('/api/person/:id/gender', (req, res) => {
+        const { id } = req.params;
+        const { gender } = req.body;
+
+        if (!gender) {
+            return res.status(400).json({ error: 'Missing gender field' });
+        }
+
+        const query = 'UPDATE Person SET gender = ? WHERE id = ?';
+
+        db.run(query, [gender, id], function (err) {
+            if (err) {
+                console.error('Error updating gender:', err.message);
+                return res.status(500).json({ error: 'Failed to update gender' });
+            }
+            res.status(200).json({ message: 'Gender updated successfully' });
+        });
+    });
+
+    app.delete('/api/family/:id', (req, res) => {
+        const { id } = req.params;
+
+        db.run('DELETE FROM Relationship WHERE personId1 = ? OR personId2 = ?', [id, id], function (err) {
+            if (err) {
+                return res.status(500).json({ error: 'Failed to delete relationships' });
+            }
+
+            db.run('DELETE FROM Person WHERE id = ?', [id], function (err2) {
+                if (err2) {
+                    return res.status(500).json({ error: 'Failed to delete person' });
+                }
+
+                res.status(200).json({ message: 'Person deleted successfully' });
+            });
+        });
+    });
+
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+        console.log(`Server is running on http://localhost:${PORT}`);
+    });

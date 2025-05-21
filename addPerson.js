@@ -1,8 +1,8 @@
 const db = require('./database');
 
-function addPerson(name, birthDate, deathDate, image, gender, relationship, parent_Id, callback) {
-    const query = `INSERT INTO Person (name, birthDate, deathDate, image, gender, relationship, parent_Id) VALUES (?, ?, ?, ?, ?, ?, ?)`;
-    db.run(query, [name, birthDate, deathDate, image, gender, relationship, parent_Id], function(err) {
+function addPerson(name, birthDate, deathDate, image, gender, relationship, parentId, callback) {
+    const query = `INSERT INTO Person (name, birthDate, deathDate, image, gender, relationship, parentId) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+    db.run(query, [name, birthDate, deathDate, image, gender, relationship, parentId], function(err) {
         if (err) {
             console.error('Error adding person: ' + err.message);
         } else {
