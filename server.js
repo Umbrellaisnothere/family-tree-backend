@@ -12,8 +12,16 @@ function removeCircularReferences(person, visited = new Set()) {
 
     visited.add(person);
 
+    if (person.parent) {
+        delete person.parent;
+    }
     if (person.partner) {
-        delete person.partner.partner;
+        if (person.partner.parent) {
+            delete person.partner.parent;
+        }
+        if (!visited.has(person.partner)) {
+            removeCircularReferences(person.partner, visited);
+        }
     }
 
     if (person.children && Array.isArray(person.children)) {
@@ -67,11 +75,16 @@ app.get('/api/family', (req, res) => {
 
             const rootNodes = Object.values(personMap).filter(p => !childIds.has(p.id));
 
-            rootNodes.forEach(root => removeCircularReferences(root));
+            // Sort by id for stable order
+            const sortById = (a, b) => a.id - b.id;
+            const sortedRoots = rootNodes.sort(sortById);
+            const sortedAllPersons = Object.values(personMap).sort(sortById);
+
+            sortedRoots.forEach(root => removeCircularReferences(root));
             
             res.json({
-                roots: rootNodes,
-                allPersons: Object.values(personMap)
+                roots: sortedRoots,
+                allPersons: sortedAllPersons
             });
         });
     });
