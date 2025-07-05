@@ -44,47 +44,13 @@ app.get('/api/family', (req, res) => {
                 return res.status(500).json({ error: 'Failed to fetch relationships' });
             }
 
-            const personMap = {};
-            persons.forEach(p => {
-                p.children = [];
-                p.partner = null;
-                p.parent = null;
-                personMap[p.id] = p;
-            });
+            // Return only flat arrays, sorted by id
+            const sortedPersons = persons.sort((a, b) => a.id - b.id);
+            const sortedRelationships = relationships.sort((a, b) => a.id - b.id);
 
-            relationships.forEach(r => {
-                const p1 = personMap[r.personId1];
-                const p2 = personMap[r.personId2];
-
-                if (!p1 || !p2) return;
-
-                if (r.type === 'parent') {
-                    p1.children.push(p2);
-                    p2.parent = p1;
-                }
-
-                if (r.type === 'spouse') {
-                    p1.partner = p2;
-                    p2.partner = p1;
-                }
-            });
-
-            const childIds = new Set(
-                relationships.filter(r => r.type === 'parent').map(r => r.personId2)
-            );
-
-            const rootNodes = Object.values(personMap).filter(p => !childIds.has(p.id));
-
-            // Sort by id for stable order
-            const sortById = (a, b) => a.id - b.id;
-            const sortedRoots = rootNodes.sort(sortById);
-            const sortedAllPersons = Object.values(personMap).sort(sortById);
-
-            sortedRoots.forEach(root => removeCircularReferences(root));
-            
             res.json({
-                roots: sortedRoots,
-                allPersons: sortedAllPersons
+                persons: sortedPersons,
+                relationships: sortedRelationships
             });
         });
     });
