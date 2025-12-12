@@ -1,0 +1,21 @@
+# Ignore sensitive documentation files
+API_DOCUMENTATION.md
+IMPROVEMENTS.md
+COMPLETION_REPORT.md
+START_HERE.md
+ENDPOINT_REFERENCE.md
+QUICK_REFERENCE.md
+FRONTEND_SUGGESTIONS.md
+
+# Ignore local uploads and DB (may contain user images / data)
+/uploads/
+family_tree.db
+
+# Environment and node modules
+.env
+.env.local
+node_modules/
+
+# OS / editor cruft
+.DS_Store
+.vscode/
