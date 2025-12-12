@@ -9,7 +9,7 @@ function addRelationship(personId1, personId2, type) {
             console.log(`Relationship added with ID: ${this.lastID}`);
         
             // If the relationship is a parent-child relationship, update the parentId of the child
-            if (type === 'child') {
+            if (type === 'parent') {
                 const updateQuery = `UPDATE Person SET parentId = ? WHERE id = ?`;
                 db.run(updateQuery, [personId1, personId2], function(updateErr) {
                     if (updateErr) {
@@ -24,4 +24,5 @@ function addRelationship(personId1, personId2, type) {
     });
 }
 
-addRelationship(1, 2, 'child');
+// Example usage (comment out to prevent automatic execution)
+// addRelationship(1, 2, 'parent');
